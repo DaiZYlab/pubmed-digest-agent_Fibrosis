@@ -2,6 +2,7 @@ name: Daily Scientific Literature Digest
 
 on:
   schedule:
+    # Runs at 12:00 UTC every day
     - cron: '0 12 * * *'
   workflow_dispatch:
 
@@ -9,6 +10,7 @@ jobs:
   run_digest_agent:
     runs-on: ubuntu-latest
 
+    # Force Node.js 24 now (prevents future breakage)
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -16,10 +18,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Python 3.x
+      - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: pip install -r requirements.txt
