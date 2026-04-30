@@ -20,7 +20,7 @@ else:
     EMAIL_RECEIVER = []
 
 # Search Keywords (can be updated here or made an environment variable)
-KEYWORDS = ["pulmonary hypertension", "pulmonary fibrosis", "Chronic lung allograft dysfunction", "lung endothelial dysfunction"]
+KEYWORDS = ["pulmonary hypertension associate with fibrosis", "pulmonary fibrosis", "Chronic lung allograft dysfunction", "lung endothelial dysfunction"]
 # ---------------------
 
 def fetch_articles():
