@@ -41,19 +41,36 @@ def fetch_articles():
     print(f"Searching for articles matching: ({pubmed_query_terms}) published on {yesterday}...")
     
     try:
-        handle = Entrez.esearch(db="pubmed", term=search_query, retmax=20)
+        # Get the total first, then paginate.  A fixed retmax can silently omit
+        # papers on days with more than that many matches.
+        handle = Entrez.esearch(db="pubmed", term=search_query, retmax=0)
         record = Entrez.read(handle)
         handle.close()
-        
-        id_list = record["IdList"]
+
+        result_count = int(record["Count"])
+        id_list = []
+        page_size = 100
+        for retstart in range(0, result_count, page_size):
+            handle = Entrez.esearch(
+                db="pubmed", term=search_query, retstart=retstart, retmax=page_size
+            )
+            page = Entrez.read(handle)
+            handle.close()
+            id_list.extend(page["IdList"])
+
         if not id_list:
             print("No articles found in search results.")
             return []
 
-        # Fetch details
-        handle = Entrez.efetch(db="pubmed", id=id_list, rettype="medline", retmode="xml")
-        articles = Entrez.read(handle)
-        handle.close()
+        # Fetch records in batches to keep each request URL a safe size.
+        articles = {"PubmedArticle": []}
+        for start in range(0, len(id_list), 200):
+            handle = Entrez.efetch(
+                db="pubmed", id=id_list[start:start + 200], rettype="medline", retmode="xml"
+            )
+            batch = Entrez.read(handle)
+            handle.close()
+            articles["PubmedArticle"].extend(batch.get("PubmedArticle", []))
         
     except Exception as e:
         print(f"Error during PubMed API call: {e}")
@@ -138,7 +155,7 @@ def format_html_email(data):
 def send_email(html_content):
     if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECEIVER:
         print("Error: Email credentials or receiver list not set.")
-        return
+        return False
 
     msg = MIMEMultipart()
     msg['From'] = EMAIL_SENDER
@@ -156,19 +173,23 @@ def send_email(html_content):
         server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
         server.quit()
         print(f"Email successfully sent to {', '.join(EMAIL_RECEIVER)}")
+        return True
     except Exception as e:
         print(f"Failed to send email: {e}")
         # Detailed error handling for authentication failure
         if 'authentication failed' in str(e).lower():
             print("Authentication failed. Ensure you are using a correct Google App Password, not your main account password.")
+        return False
 
 if __name__ == "__main__":
     if not EMAIL_PASSWORD or not ENTREZ_EMAIL:
         print("Agent could not run. Check that EMAIL_PASSWORD and ENTREZ_EMAIL environment variables are set.")
+        raise SystemExit(1)
     else:
         data = fetch_articles()
         if data:
             html = format_html_email(data)
-            send_email(html)
+            if not send_email(html):
+                raise SystemExit(1)
         else:
             print("No new articles found for yesterday. Email not sent.")
